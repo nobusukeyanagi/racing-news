@@ -367,6 +367,12 @@ TRAILING_COMPANY = re.compile(
     re.I,
 )
 
+LINK_ONLY_TEXT = re.compile(
+    r"^[【［\[]\s*(?:写真|画像|動画|映像|関連記事|関連写真|関連動画|一覧|図解|表|"
+    r"一目で|写真で|動画で|画像で|チェック|注目|こちら)\s*[】］\]].*$",
+    re.I,
+)
+
 
 def clean_news_title(value: str) -> str:
     """ニュース見出し末尾に併記された媒体・補足の括弧書きを外す。"""
@@ -381,7 +387,10 @@ def clean_body_blocks(blocks: list[dict], publisher: str = "") -> list[dict]:
     # 末尾側だけを対象にして本文中の人名・社名を誤削除しにくくする。
     for i in reversed(text_indexes[-5:]):
         block = result[i]
-        paragraphs = [clean(x) for x in re.split(r"\n\s*\n|\n", block.get("text", "")) if clean(x)]
+        paragraphs = [
+            clean(x) for x in re.split(r"\n\s*\n|\n", block.get("text", ""))
+            if clean(x) and not LINK_ONLY_TEXT.fullmatch(clean(x))
+        ]
         while paragraphs:
             tail = paragraphs[-1].strip()
             normalized = tail.replace("　", " ")
