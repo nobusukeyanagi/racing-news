@@ -48,3 +48,18 @@ Yahoo!フォローのテーマページは一度に100件すべてが静的HTML�
 - 左タイトル一覧は各競技最大100件。NEWは緑、それ以外は青
 - ニュースタイトルは緑
 - 見出し末尾の括弧書き、本文末尾の執筆者名・執筆社名を表示時に除去
+
+
+## Discord通知
+
+GitHubの `Settings → Secrets and variables → Actions` に、
+`DISCORD_WEBHOOK_URL` という名前でDiscord Webhook URLを登録してください。
+
+ニュース取得・Pages公開が成功した更新時に、以下を送信します。
+
+```text
+🐴 公営競技ニュースを更新しました
+https://nobusukeyanagi.github.io/racing-news/
+```
+
+デザイン変更など、保存済みデータからページだけを再生成した場合は通知しません。
