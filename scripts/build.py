@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
 import sys
@@ -186,6 +187,115 @@ def parse_theme(document: str, theme_url: str, category: str, slug: str) -> list
     if not items:
         raise RuntimeError(f"{category}: ニュース一覧が取得できませんでした")
     return items
+
+
+
+def fetch_theme_with_more(client: Client, theme_url: str, category: str, slug: str) -> list[dict]:
+    """Yahoo!フォローの「もっと見る」をブラウザ上で繰り返し、可能な限り100件取得する。"""
+    # 先に通常取得を行い、robots.txt確認とフォールバック用HTMLを確保する。
+    fallback_document = client.get(theme_url, refresh=True)
+    fallback_items = parse_theme(fallback_document, theme_url, category, slug)
+
+    try:
+        from selenium import webdriver
+        from selenium.common.exceptions import TimeoutException, WebDriverException
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1280,1800")
+        options.add_argument("--lang=ja-JP")
+        options.add_argument(f"--user-agent={AGENT}")
+
+        chrome_binary = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
+        if chrome_binary:
+            options.binary_location = chrome_binary
+
+        driver_path = shutil.which("chromedriver")
+        if not driver_path:
+            driver_dir = os.environ.get("CHROMEWEBDRIVER", "")
+            candidate = Path(driver_dir) / "chromedriver" if driver_dir else None
+            if candidate and candidate.is_file():
+                driver_path = str(candidate)
+
+        service = Service(executable_path=driver_path) if driver_path else Service()
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.set_page_load_timeout(35)
+
+        def article_count() -> int:
+            return int(driver.execute_script("""
+                return [...document.querySelectorAll('a[href]')].filter(a => {
+                    const href = a.href || '';
+                    return href.includes('news.yahoo.co.jp/') || href.includes('article.yahoo.co.jp/');
+                }).length;
+            """))
+
+        try:
+            driver.get(theme_url)
+            WebDriverWait(driver, 15).until(lambda d: article_count() > 0)
+
+            # 1回あたり20件前後を想定。余裕を持って最大12回まで追加取得する。
+            for click_index in range(12):
+                before = article_count()
+                if before >= MAX_PER_CATEGORY:
+                    break
+
+                buttons = driver.find_elements(By.XPATH, "//button[normalize-space(.)='もっと見る']")
+                button = next((b for b in reversed(buttons) if b.is_displayed() and b.is_enabled()), None)
+                if button is None:
+                    break
+
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", button)
+                time.sleep(0.4)
+                driver.execute_script("arguments[0].click();", button)
+
+                try:
+                    WebDriverWait(driver, 12).until(lambda d: article_count() > before)
+                except TimeoutException:
+                    # 通信待ちの揺らぎを吸収し、それでも増えなければ打ち切る。
+                    time.sleep(2.0)
+                    if article_count() <= before:
+                        break
+
+                after = article_count()
+                print(
+                    f"{category}: もっと見る {click_index + 1}回目 "
+                    f"({before} → {after}リンク)",
+                    flush=True,
+                )
+
+            browser_items = parse_theme(driver.page_source, theme_url, category, slug)
+        finally:
+            driver.quit()
+
+        # DOMには報告リンク等もあるため、URL重複除去後のニュース件数で判定する。
+        if len(browser_items) > len(fallback_items):
+            print(
+                f"{category}: 追加読み込み後 {len(browser_items[:MAX_PER_CATEGORY])}件取得",
+                flush=True,
+            )
+            return browser_items[:MAX_PER_CATEGORY]
+
+        print(
+            f"::warning::{category}: 「もっと見る」で件数が増えなかったため通常取得を使用 "
+            f"({len(fallback_items)}件)",
+            file=sys.stderr,
+        )
+        return fallback_items[:MAX_PER_CATEGORY]
+
+    except Exception as error:
+        print(
+            f"::warning::{category}: ブラウザによる追加取得に失敗。通常取得へフォールバック: "
+            f"{type(error).__name__}: {error}",
+            file=sys.stderr,
+        )
+        return fallback_items[:MAX_PER_CATEGORY]
 
 
 def json_articles(value):
@@ -529,7 +639,7 @@ def build(output: Path, previous_site: Path | None = None, from_snapshot: Path |
         for category, slug, theme_url in THEMES:
             previous_category = [x for x in previous_items if x.get("category_slug") == slug]
             try:
-                fresh = parse_theme(client.get(theme_url, refresh=True), theme_url, category, slug)
+                fresh = fetch_theme_with_more(client, theme_url, category, slug)
                 print(f"{category}: 一覧 {len(fresh)}件", flush=True)
                 merged = merge_category(client, fresh, previous_category, output / "images")
                 if not merged:
