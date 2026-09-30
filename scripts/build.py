@@ -412,8 +412,21 @@ def clean_body_blocks(blocks: list[dict], publisher: str = "") -> list[dict]:
     return result
 
 
-def truncate_title(value: str, maximum: int = 30) -> str:
+LEADING_LABEL = re.compile(r"^(【[^】\n]{1,40}】)\s*(.+)$")
+
+
+def nav_title(value: str) -> str:
+    """左のタイトル一覧だけ、先頭の【○○】を末尾へ移す。"""
     value = clean_news_title(str(value))
+    match = LEADING_LABEL.match(value)
+    if not match:
+        return value
+    label, rest = match.groups()
+    return f"{rest} {label}".strip()
+
+
+def truncate_title(value: str, maximum: int = 25) -> str:
+    value = str(value)
     return value if len(value) <= maximum else value[:maximum] + "…"
 
 
@@ -431,9 +444,10 @@ def render(items: list[dict], updated: datetime) -> str:
         links = []
         for index, item in enumerate(grouped.get(slug, [])[:MAX_PER_CATEGORY], 1):
             article_id = f"{slug}-{index}"
+            list_title = nav_title(item["title"])
             links.append(
                 f'<li data-category="{slug}" data-new="{str(bool(item.get("is_new"))).lower()}">'
-                f'<a href="#news-{article_id}" title="{esc(item["title"], quote=True)}">{display(truncate_title(item["title"]))}</a></li>'
+                f'<a href="#news-{article_id}" title="{esc(list_title, quote=True)}">{display(truncate_title(list_title))}</a></li>'
             )
         nav_groups.append(f'<section class="title-group" data-category="{slug}"><ol>{"".join(links)}</ol></section>')
 
@@ -476,7 +490,7 @@ def render(items: list[dict], updated: datetime) -> str:
 <style>
 *{box-sizing:border-box}html{scroll-behavior:auto}body{margin:0;background:#fff;color:#202020;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;font-size:16px;line-height:1.9;overflow-wrap:anywhere}
 main{max-width:1440px;margin:0 auto;padding:0 24px 56px}header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #bbb;padding:4px 0}.header-row{display:flex;align-items:center;gap:10px 18px;min-height:34px}h1{font-size:1.5rem;line-height:1.3;margin:0;flex:none}h1 a{color:inherit;text-decoration:none}h2{font-size:1.3rem;line-height:1.55;margin:0 0 8px}.feed article h2{color:#14532d}a{color:#174c86;text-underline-offset:3px}a:focus-visible,button:focus-visible{outline:2px solid #14532d;outline-offset:3px}.update-controls{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}.updated,.meta{font-size:.875rem;color:#555}.new-filter{border:0;background:transparent;color:#555;font:inherit;font-size:14px;padding:2px 0;cursor:pointer}.race-tabs{display:flex;align-items:center;gap:14px;white-space:nowrap}.race-tab{border:0;background:transparent;color:#777;padding:0;font:inherit;font-size:14px;cursor:pointer}.race-tab[aria-pressed="true"]{color:#174c86;font-weight:700}.mobile-race-tabs{display:none}
-.layout{display:grid;grid-template-columns:minmax(320px,430px) minmax(0,1fr);gap:36px;align-items:start}.feed{padding-top:12px}nav{position:sticky;top:calc(var(--header-height, 42px) + 8px);max-height:calc(100dvh - var(--header-height, 42px) - 16px);overflow:auto;padding-top:12px}.title-group ol{margin:0;padding:0;list-style:none}.title-group li{padding:2px 0}.title-group li[data-new="true"] a{color:#174c86}.title-group a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}article{border-top:1px solid #bbb;padding:28px 0;scroll-margin-top:calc(var(--header-height, 42px) + 12px)}article p{margin:0 0 18px}.meta{margin:4px 0 14px}.meta a{color:inherit}.subheading{font-weight:700}.notice{padding:10px 14px;border-left:3px solid #999;background:#f5f5f5}figure{margin:0 0 18px}figure img{display:block;width:auto;max-width:300px;height:auto;max-height:300px;object-fit:contain}figcaption{font-size:.8125rem;color:#555;line-height:1.55;margin-top:5px}[hidden]{display:none!important}.menu-toggle,.pull-refresh{display:none}
+.layout{display:grid;grid-template-columns:minmax(280px,380px) minmax(0,1fr);gap:36px;align-items:start}.feed{padding-top:12px}nav{position:sticky;top:calc(var(--header-height, 42px) + 8px);max-height:calc(100dvh - var(--header-height, 42px) - 16px);overflow:auto;padding-top:12px}.title-group ol{margin:0;padding:0;list-style:none}.title-group li{padding:2px 0}.title-group li[data-new="true"] a{color:#174c86}.title-group a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}article{border-top:1px solid #bbb;padding:28px 0;scroll-margin-top:calc(var(--header-height, 42px) + 12px)}article p{margin:0 0 18px}.meta{margin:4px 0 14px}.meta a{color:inherit}.subheading{font-weight:700}.notice{padding:10px 14px;border-left:3px solid #999;background:#f5f5f5}figure{margin:0 0 18px}figure img{display:block;width:auto;max-width:300px;height:auto;max-height:300px;object-fit:contain}figcaption{font-size:.8125rem;color:#555;line-height:1.55;margin-top:5px}[hidden]{display:none!important}.menu-toggle,.pull-refresh{display:none}
 @media(max-width:700px){body{font-size:17px;line-height:1.8}main{padding:0 16px 36px}header{padding:1px 0;min-height:42px}.header-row{gap:6px 10px}h1{font-size:1.25rem}.desktop-race-tabs{display:none}.updated{font-size:13px}.new-filter{font-size:13px;padding:0}.layout{display:block}.menu-toggle{display:inline-flex;align-items:center;justify-content:center;flex:none;order:3;margin-left:auto;width:32px;height:34px;border:0;background:transparent;color:inherit;padding:4px}.hamburger{display:flex;flex-direction:column;gap:4px}.hamburger span{display:block;width:20px;height:2px;background:currentColor}.layout nav{display:none;position:fixed;top:var(--header-height, 42px);left:0;right:0;z-index:19;max-height:calc(100dvh - var(--header-height, 42px));overflow:auto;padding:10px 16px 14px;background:#fff;border-bottom:1px solid #bbb;box-shadow:0 5px 10px #0002}body.menu-open .layout nav{display:block}.mobile-race-tabs{display:flex;gap:14px;padding:0 0 10px;margin-bottom:8px;border-bottom:1px solid #ddd;overflow-x:auto}.mobile-race-tabs .race-tab{font-size:14px}.title-group a{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}h2{font-size:20px}figcaption{font-size:14px}.pull-refresh{display:block;position:fixed;top:0;left:50%;z-index:25;padding:3px 14px;background:#14532d;color:#fff;border-radius:0 0 12px 12px;font-size:14px;pointer-events:none;transform:translate(-50%,-110%);transition:transform .15s}.pull-refresh.active{transform:translate(-50%,0)}}
 @media print{header{position:static}.menu-toggle,nav,.pull-refresh{display:none!important}main{max-width:none;padding:0}.layout{display:block}}
 </style></head><body><div class="pull-refresh" role="status" aria-live="polite">下に引いて更新</div><main id="top">
