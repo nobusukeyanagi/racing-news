@@ -2,8 +2,8 @@ name: Update racing news
 
 on:
   schedule:
-    # GitHub ActionsのcronはUTC。JST 0:00 / 8:00 / 16:00の目安。
-    - cron: '0 7,15,23 * * *'
+    # GitHub ActionsのcronはUTC。JST 0:04 / 8:04 / 16:04の目安。
+    - cron: '4 7,15,23 * * *'
   workflow_dispatch:
   push:
     branches: [main]
