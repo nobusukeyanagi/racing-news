@@ -478,8 +478,14 @@ TRAILING_COMPANY = re.compile(
 )
 
 LINK_ONLY_TEXT = re.compile(
-    r"^[【［\[]\s*(?:写真|画像|動画|映像|関連記事|関連写真|関連動画|一覧|図解|表|"
-    r"一目で|写真で|動画で|画像で|チェック|注目|こちら)\s*[】］\]].*$",
+    r"^(?:"
+    r"[【［\[]\s*(?:写真|画像|動画|映像|関連記事|関連写真|関連動画|一覧|図解|表|"
+    r"一目で|写真で|動画で|画像で|チェック|注目|こちら)\s*[】］\]].*"
+    r"|(?:詳しくは|詳細は|続きは|全文は)?\s*(?:こちら|コチラ)(?:から)?[。！!]?"
+    r"|(?:詳しくはこちら|詳細はこちら|続きを読む|全文を読む|記事を読む|元記事を読む|"
+    r"関連記事を見る|関連写真を見る|写真を見る|画像を見る|動画を見る|映像を見る|"
+    r"一覧を見る|もっと見る)[。！!]?"
+    r")$",
     re.I,
 )
 
@@ -499,7 +505,7 @@ def clean_body_blocks(blocks: list[dict], publisher: str = "") -> list[dict]:
         block = result[i]
         paragraphs = [
             clean(x) for x in re.split(r"\n\s*\n|\n", block.get("text", ""))
-            if clean(x) and not LINK_ONLY_TEXT.fullmatch(clean(x))
+            if clean(x) and not LINK_ONLY_TEXT.fullmatch(clean(x).strip())
         ]
         while paragraphs:
             tail = paragraphs[-1].strip()
